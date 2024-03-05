@@ -29,14 +29,9 @@
 			var m = fullfilename.match(/([^:\\/]*?)(?:\.([^ :\\/.]*))?$/);
 			var fileName = (m === null)? "" : m[1];
 			console.log("Reading file " + fileName);
+			const stream = Stream.fromArrayBuffer(reader.result);
 
-			var bytes = new Uint8Array(reader.result);
-
-			console.log(bytes);
-			
-			const stream = Stream.fromByteArray(bytes);
 			console.log("isFIT (static method): " + Decoder.isFIT(stream));
-
 			const decoder = new Decoder(stream);
 			console.log("isFIT (instance method): " + decoder.isFIT());
 			console.log("checkIntegrity: " + decoder.checkIntegrity());
@@ -88,7 +83,6 @@
 			console.log(powerLog);
 			
 			// Export powerLog as CSV
-			// with open(filename+"_summary.csv","w") as csv:
 			sumCsv = "Power Range (min),Power Range (max),Minutes\n";
 			for(let n = 0; n < N; n++)
 				sumCsv += (n*10) + ", " + ((n+1)*10) + ", " + powerLog[n] + "\n";
