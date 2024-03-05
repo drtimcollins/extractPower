@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html><head>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script type="module">
+	import { Decoder, Stream, Profile, Utils } from './index.js';
+
+	$(function(){  
+		$("#selectFiles").change(function(e) {
+			uploadFIT(e);
+		});
+		$("#selectFiles").bind('input',function(e) {
+		console.log("Input file selected");
+		});
+	});
+
+	function formatTime(d){
+		return d.toLocaleDateString() + " " + d.toLocaleTimeString();
+	}
+
+	var allCsv, sumCsv;
+
+	function uploadFIT(event){
+		console.log("Uploading");
+		$("#logText").val("Uploading Fit File...");
+		
+		var reader = new FileReader();
+		reader.onload = function(event){
+			var fullfilename = $("#selectFiles").val().split('\\').pop().split('/').pop();
+			var m = fullfilename.match(/([^:\\/]*?)(?:\.([^ :\\/.]*))?$/);
+			var fileName = (m === null)? "" : m[1];
+			console.log("Reading file " + fileName);
+
+			var bytes = new Uint8Array(reader.result);
+
+			console.log(bytes);
+			
+			const stream = Stream.fromByteArray(bytes);
+			console.log("isFIT (static method): " + Decoder.isFIT(stream));
+
+			const decoder = new Decoder(stream);
+			console.log("isFIT (instance method): " + decoder.isFIT());
+			console.log("checkIntegrity: " + decoder.checkIntegrity());
+
+			if(!Decoder.isFIT(stream) || !decoder.isFIT() || !decoder.checkIntegrity()){
+				$("#logText").val($("#logText").val() + "Error\nFIT file error.");
+				return;
+			}
+
+			const { messages, errors } = decoder.read();
+
+			console.log(errors);
+			console.log(messages);	
+			
+			console.log(messages.recordMesgs.length + " records found.")
+
+
+			// Find maximum power recorded
+			var max_power = 0
+			var numP = 0;
+			messages.recordMesgs.forEach(r => {
+				if(r.hasOwnProperty('power')){
+					max_power = Math.max(max_power, r.power);
+					numP++;
+				}
+			});
+			console.log(numP + " power records found.")
+			var N = Math.floor(max_power / 10) + 1;
+
+			if(numP == 0){
+				$("#logText").val($("#logText").val() + "Error\nNo power records in FIT file.");
+				return;
+			}
+
+
+			// Extract and export as CSV all power records and add frequencies to powerLog
+			allCsv = "Timestamp,Power\n";
+			var powerLog = new Array(N).fill(0);
+			messages.recordMesgs.forEach(r => {
+				if(r.hasOwnProperty('power')){
+					let c = formatTime(r.timestamp) + ", " + r.power;
+					allCsv += c + "\n";
+					//console.log(c);
+					let i = Math.floor(r.power / 10);
+					powerLog[i]++;
+				}
+			});
+			
+			console.log(powerLog);
+			
+			// Export powerLog as CSV
+			// with open(filename+"_summary.csv","w") as csv:
+			sumCsv = "Power Range (min),Power Range (max),Minutes\n";
+			for(let n = 0; n < N; n++)
+				sumCsv += (n*10) + ", " + ((n+1)*10) + ", " + powerLog[n] + "\n";
+
+			$("#logText").val($("#logText").val() + "OK\nExtraction complete.");
+
+			$("#allLink").attr("href", 'data:text/plain;charset=utf-8,' + encodeURIComponent(allCsv));
+			$("#allLink").attr("download", fileName + ".csv");
+			$("#allLink").text("Download All Power Recordings")
+
+			$("#sumLink").attr("href", 'data:text/plain;charset=utf-8,' + encodeURIComponent(sumCsv));
+			$("#sumLink").attr("download", fileName + "_summary.csv");
+			$("#sumLink").text("Download Power Summary")
+
+		}
+		reader.readAsArrayBuffer(event.target.files[0]);
+	}
+</script>
+</head>
+<body>
+<div>
+<input type="file" id="selectFiles" accept=".fit"/>
+</div>
+<div>
+<textarea rows="4" cols="50" id="logText" readonly></textarea>
+</div>
+<div>
+	<a id="allLink"></a> - <a id="sumLink"></a>
+</div>
+</body></html>
